@@ -2,9 +2,9 @@
     "$schema-version": "0.0.1",
     "description": "",
     "image": {
-        "repository": "percepttest.azurecr.io/totallyempty",
+        "repository": "docker.io/mplogas/iotedge-count",
         "tag": {
-            "version": "0.0.2",
+            "version": "1.0.1",
             "platforms": {
                 "amd64": "./Dockerfile.amd64", 
                 "amd64.debug": "./Dockerfile.amd64.debug",

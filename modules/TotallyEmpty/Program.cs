@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -17,17 +19,17 @@ namespace TotallyEmpty
     class Program
     {
         static int counter;
-        private static string label = "Car";
         private static double minConfidence = 0.5;
 
         private const string testJSON =
-            @"[{'NEURAL_NETWORK': [{'bbox': [0.799, 0.740, 0.940, 0.904],'label': 'Car', 'confidence': '0.932598', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'Car', 'confidence': '0.519588', 'timestamp': '1644415478571327732'}]}]";
+            @"[{'NEURAL_NETWORK': [{'bbox': [0.799, 0.740, 0.940, 0.904],'label': 'Car', 'confidence': '0.932598', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'Car', 'confidence': '0.519588', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'Truck', 'confidence': '0.519588', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'cat', 'confidence': '0.519588', 'timestamp': '1644415478571327732'}]}]";
 
         static void Main(string[] args)
         {
-            Init().Wait();
+            //var c = ParseJson(testJSON);
+            //var j = BuildPayload(c);
 
-            // Wait until the app unloads or is cancelled
+            Init().Wait();
             var cts = new CancellationTokenSource();
             AssemblyLoadContext.Default.Unloading += (ctx) => cts.Cancel();
             Console.CancelKeyPress += (sender, cpe) => cts.Cancel();
@@ -53,13 +55,12 @@ namespace TotallyEmpty
         {
             MqttTransportSettings mqttSetting = new MqttTransportSettings(TransportType.Mqtt_Tcp_Only);
             ITransportSettings[] settings = { mqttSetting };
-
-            if(!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TOTALLYEMPTY_LABEL"))) label = Environment.GetEnvironmentVariable("TOTALLYEMPTY_LABEL");
+            
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TOTALLYEMPTY_MIN_CONFIDENCE")))
             {
                 if(double.TryParse(Environment.GetEnvironmentVariable("TOTALLYEMPTY_MIN_CONFIDENCE"), out var conf)) minConfidence = conf;
             }
-            Console.WriteLine($"Active label: {label}, min confidence: {minConfidence}");
+            Console.WriteLine($"min confidence: {minConfidence}");
 
             // Open a connection to the Edge runtime
             ModuleClient ioTHubModuleClient = await ModuleClient.CreateFromEnvironmentAsync(settings);
@@ -91,50 +92,56 @@ namespace TotallyEmpty
 
             if (!string.IsNullOrEmpty(messageString))
             {
-                var count = ParseJson(messageString, label);
-                var payload = BuildPayload(count, label);
+                try
+                {
+                    var count = ParseJson(messageString);
+                    var payload = BuildPayload(count); 
+                    
+                    var msg = new Message(Encoding.UTF8.GetBytes(payload));
 
-                var msg = new Message(Encoding.UTF8.GetBytes(payload));
+                    await moduleClient.SendEventAsync("output1", msg);
 
-                await moduleClient.SendEventAsync("output1", msg);
+                    Console.WriteLine("Received message sent");
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.Message);
+                }
 
-                Console.WriteLine("Received message sent");
+
             }
             return MessageResponse.Completed;
         }
 
-        private static int ParseJson(string messageString, string tag)
+        private static Dictionary<string, int> ParseJson(string messageString)
         {
             dynamic nnArrays = JArray.Parse(messageString);
             dynamic neuralNetwork = nnArrays[0];
             dynamic data = JArray.Parse(neuralNetwork.NEURAL_NETWORK.ToString());
-            var result = 0;
+
+            var result = new Dictionary<string, int>();
+
             foreach (dynamic detect in data)
             {
-                if (detect.label == tag) result++;
+                if (result.ContainsKey(detect.label.ToString())) result[detect.label.ToString()]++;
+                else result[detect.label.ToString()] = 1;
             }
 
-            Console.WriteLine($"{label}s detected: {result}");
             return result;
         }
 
-        private static string BuildPayload(int count, string tag)
+        private static string BuildPayload(Dictionary<string, int> count)
         {
-            var sb = new StringBuilder();
-            sb.Append("{");
-            sb.Append("\"label\":\"");
-            sb.Append(tag);
-            sb.Append("\",");
-            sb.Append("\"amount\":\"");
-            sb.Append(count);
-            sb.Append("\",");
-            sb.Append("\"timestamp\":\"");
-            sb.Append(DateTime.UtcNow);
-            sb.Append("\"");
-            sb.Append("}");
+            var result = new
+            {
+                timestamp = DateTime.UtcNow.Ticks,
+                data = count.Select(i => new {label = i.Key, count = i.Value})
+            };
 
-            Console.WriteLine($"Json payload created {sb.ToString()}");
-            return sb.ToString();
+            var json = JsonConvert.SerializeObject(result);
+
+            Console.WriteLine($"Json payload created {json}");
+            return json;
         }
     }
 }
