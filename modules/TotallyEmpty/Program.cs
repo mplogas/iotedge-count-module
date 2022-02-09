@@ -1,41 +1,38 @@
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
-using System.Transactions;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-
 namespace TotallyEmpty
 {
-    using System;
-    using System.IO;
-    using System.Runtime.InteropServices;
-    using System.Runtime.Loader;
-    using System.Security.Cryptography.X509Certificates;
-    using System.Text;
-    using System.Threading;
-    using System.Threading.Tasks;
     using Microsoft.Azure.Devices.Client;
     using Microsoft.Azure.Devices.Client.Transport.Mqtt;
+    using System;
+    using System.Collections.Generic;
+    using System.Globalization;
+    using System.Linq;
+    using System.Text;
+    using System.Text.Json;
+    using System.Threading;
+    using System.Threading.Tasks;
 
     class Program
     {
         static int counter;
-        private static double minConfidence = 0.5;
-
-        //private const string testJSON = "[{'NEURAL_NETWORK': [{'bbox': [0.365, 0.482, 0.902, 0.817],'label': 'Car', 'confidence': '0.925318', 'timestamp': '1644434533400484665'}]}]";
-        //@"[{'NEURAL_NETWORK': [{'bbox': [0.799, 0.740, 0.940, 0.904],'label': 'Car', 'confidence': '0.932598', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'Car', 'confidence': '0.519588', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'Truck', 'confidence': '0.419588', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'cat', 'confidence': '0.519588', 'timestamp': '1644415478571327732'}]}]";
+        private static double minConfidence = 0.3;
 
         static void Main(string[] args)
         {
-            //var c = ParseJson(testJSON);
-            //var j = BuildPayload(c);
+#if DEBUG
+            //string testJSON = "[{\"NEURAL_NETWORK\": [{\"bbox\": [0.365, 0.482, 0.902, 0.817], \"label\": \"Car\", \"confidence\": \"0.9253182\", \"timestamp\": \"1644434533400484665\"}]}]";
+            string testJSON =
+                "[{\"NEURAL_NETWORK\": [{\"bbox\": [0.799, 0.740, 0.940, 0.904],\"label\": \"Car\", \"confidence\": \"0.932598\", \"timestamp\": \"1644415478571327732\"}, {\"bbox\": [0.575, 0.542, 0.608, 0.567],\"label\": \"Car\", \"confidence\": \"0.519588\", \"timestamp\": \"1644415478571327732\"}, {\"bbox\": [0.575, 0.542, 0.608, 0.567],\"label\": \"Truck\", \"confidence\": \"0.419588\", \"timestamp\": \"1644415478571327732\"}, {\"bbox\": [0.575, 0.542, 0.608, 0.567],\"label\": \"cat\", \"confidence\": \"0.519588\", \"timestamp\": \"1644415478571327732\"}]}]";
 
+
+            var c = ParseJson(testJSON);
+            var j = BuildPayload(c);
+#elif Release
             Init().Wait();
             var cts = new CancellationTokenSource();
             AssemblyLoadContext.Default.Unloading += (ctx) => cts.Cancel();
             Console.CancelKeyPress += (sender, cpe) => cts.Cancel();
             WhenCancelled(cts.Token).Wait();
+#endif
         }
 
 
@@ -117,22 +114,27 @@ namespace TotallyEmpty
 
         private static Dictionary<string, int> ParseJson(string messageString)
         {
-            dynamic nnArrays = JArray.Parse(messageString);
-            dynamic neuralNetwork = nnArrays[0];
-            dynamic data = JArray.Parse(neuralNetwork.NEURAL_NETWORK.ToString());
-
+            var options = new JsonDocumentOptions
+                {AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip};
             var result = new Dictionary<string, int>();
 
-            foreach (dynamic detect in data)
+            using JsonDocument document = JsonDocument.Parse(messageString, options);
+            foreach (var arrayElement in document.RootElement.EnumerateArray())
             {
-                if (double.TryParse(detect.confidence.ToString(), NumberStyles.AllowDecimalPoint, new NumberFormatInfo(), out double confidence))
+                foreach (var element in arrayElement.GetProperty("NEURAL_NETWORK").EnumerateArray())
                 {
-                    if (confidence > minConfidence)
+                    var label = element.GetProperty("label").GetString();
+
+                    if (double.TryParse(element.GetProperty("confidence").GetString(), NumberStyles.AllowDecimalPoint, new NumberFormatInfo(), out double confidence))
                     {
-                        if (result.ContainsKey(detect.label.ToString())) result[detect.label.ToString()]++;
-                        else result[detect.label.ToString()] = 1;
+                        if (confidence > minConfidence)
+                        {
+                            if (result.ContainsKey(label)) result[label]++;
+                            else result[label] = 1;
+                        }
                     }
                 }
+
             }
 
             return result;
@@ -146,7 +148,7 @@ namespace TotallyEmpty
                 data = count.Select(i => new {label = i.Key, count = i.Value})
             };
 
-            var json = JsonConvert.SerializeObject(result);
+            var json = JsonSerializer.Serialize(result);
 
             Console.WriteLine($"Json payload created {json}");
             return json;
