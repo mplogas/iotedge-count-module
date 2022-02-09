@@ -23,8 +23,8 @@ namespace TotallyEmpty
         static int counter;
         private static double minConfidence = 0.5;
 
-        private const string testJSON =
-            @"[{'NEURAL_NETWORK': [{'bbox': [0.799, 0.740, 0.940, 0.904],'label': 'Car', 'confidence': '0.932598', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'Car', 'confidence': '0.519588', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'Truck', 'confidence': '0.419588', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'cat', 'confidence': '0.519588', 'timestamp': '1644415478571327732'}]}]";
+        //private const string testJSON = "[{'NEURAL_NETWORK': [{'bbox': [0.365, 0.482, 0.902, 0.817],'label': 'Car', 'confidence': '0.925318', 'timestamp': '1644434533400484665'}]}]";
+        //@"[{'NEURAL_NETWORK': [{'bbox': [0.799, 0.740, 0.940, 0.904],'label': 'Car', 'confidence': '0.932598', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'Car', 'confidence': '0.519588', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'Truck', 'confidence': '0.419588', 'timestamp': '1644415478571327732'}, {'bbox': [0.575, 0.542, 0.608, 0.567],'label': 'cat', 'confidence': '0.519588', 'timestamp': '1644415478571327732'}]}]";
 
         static void Main(string[] args)
         {
