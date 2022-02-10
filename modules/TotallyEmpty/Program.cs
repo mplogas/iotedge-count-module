@@ -27,6 +27,7 @@ namespace TotallyEmpty
         {
 #if DEBUG
             //string testJSON = "[{\"NEURAL_NETWORK\": [{\"bbox\": [0.365, 0.482, 0.902, 0.817], \"label\": \"Car\", \"confidence\": \"0.9253182\", \"timestamp\": \"1644434533400484665\"}]}]";
+            string testJSON3 = "{}";
             string testJSON1 =
                 "{\"NEURAL_NETWORK\": [{\"bbox\": [0.799, 0.740, 0.940, 0.904],\"label\": \"Car\", \"confidence\": \"0.932598\", \"timestamp\": \"1644415478571327732\"}, {\"bbox\": [0.575, 0.542, 0.608, 0.567],\"label\": \"Car\", \"confidence\": \"0.519588\", \"timestamp\": \"1644415478571327732\"}, {\"bbox\": [0.575, 0.542, 0.608, 0.567],\"label\": \"Truck\", \"confidence\": \"0.419588\", \"timestamp\": \"1644415478571327732\"}, {\"bbox\": [0.575, 0.542, 0.608, 0.567],\"label\": \"cat\", \"confidence\": \"0.519588\", \"timestamp\": \"1644415478571327732\"}]}";
             string testJSON2 =
@@ -34,11 +35,11 @@ namespace TotallyEmpty
 
 
             var c1 = ParseJson(testJSON1);
-            c1 = Caching(c1, cache);
+            c1 = HandleCaching(c1, cache);
             var j1 = BuildPayload(c1);
             Task.Delay(1000);
             var c2 = ParseJson(testJSON2);
-            c2 = Caching(c2, cache);
+            c2 = HandleCaching(c2, cache);
             var j2 = BuildPayload(c2);
 #elif RELEASE
             Init().Wait();
@@ -111,7 +112,7 @@ namespace TotallyEmpty
                 try
                 {
                     var countResult = ParseJson(messageString);
-                    countResult = Caching(countResult, cache);
+                    countResult = HandleCaching(countResult);
 
                     if (countResult.Count > 0)
                     {
@@ -175,12 +176,14 @@ namespace TotallyEmpty
             return json;
         }
 
-        private static Dictionary<string, int> Caching(Dictionary<string, int> countResult, Dictionary<string, int> cache)
+        private static Dictionary<string, int> HandleCaching(Dictionary<string, int> countResult)
         {
             var result = new Dictionary<string, int>();
+            var newCache = new Dictionary<string, int>();
 
             foreach (var kvp in countResult)
             {
+                newCache.Add(kvp.Key, kvp.Value);
                 if (cache.ContainsKey(kvp.Key) && cache[kvp.Key] == kvp.Value)
                 {
                     Console.WriteLine($"found key {kvp.Key} with value {kvp.Value} in cache. skipping.");
@@ -188,12 +191,9 @@ namespace TotallyEmpty
                 }
 
                 result.Add(kvp.Key, kvp.Value);
-
-                //updating cache
-                if (cache.ContainsKey(kvp.Key)) cache[kvp.Key] = kvp.Value;
-                else cache.Add(kvp.Key, kvp.Value);
             }
 
+            cache = newCache;
             return result;
         }
     }
