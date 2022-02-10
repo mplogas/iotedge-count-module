@@ -35,12 +35,16 @@ namespace TotallyEmpty
 
 
             var c1 = ParseJson(testJSON1);
-            c1 = HandleCaching(c1, cache);
+            c1 = HandleCaching(c1);
             var j1 = BuildPayload(c1);
             Task.Delay(1000);
             var c2 = ParseJson(testJSON2);
-            c2 = HandleCaching(c2, cache);
+            c2 = HandleCaching(c2);
             var j2 = BuildPayload(c2);
+            Task.Delay(1000);
+            var c3 = ParseJson(testJSON3);
+            c3 = HandleCaching(c3);
+            var j3 = BuildPayload(c3);
 #elif RELEASE
             Init().Wait();
             var cts = new CancellationTokenSource();
@@ -167,6 +171,7 @@ namespace TotallyEmpty
             var result = new
             {
                 timestamp = DateTime.UtcNow,
+                deviceid = deviceId,
                 data = count.Select(i => new {label = i.Key, count = i.Value})
             };
 
