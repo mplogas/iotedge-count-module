@@ -1,5 +1,7 @@
 
 
+using System.Collections;
+
 namespace TotallyEmpty
 {
     using Microsoft.Azure.Devices.Client;
@@ -18,24 +20,33 @@ namespace TotallyEmpty
     {
         static int counter;
         private static double minConfidence = 0.5;
+        private static string deviceId = $"percept_{new Random().Next()}";
+        private static Dictionary<string, int> cache = new Dictionary<string, int>();
 
         static void Main(string[] args)
         {
 #if DEBUG
             //string testJSON = "[{\"NEURAL_NETWORK\": [{\"bbox\": [0.365, 0.482, 0.902, 0.817], \"label\": \"Car\", \"confidence\": \"0.9253182\", \"timestamp\": \"1644434533400484665\"}]}]";
-            string testJSON =
+            string testJSON1 =
                 "{\"NEURAL_NETWORK\": [{\"bbox\": [0.799, 0.740, 0.940, 0.904],\"label\": \"Car\", \"confidence\": \"0.932598\", \"timestamp\": \"1644415478571327732\"}, {\"bbox\": [0.575, 0.542, 0.608, 0.567],\"label\": \"Car\", \"confidence\": \"0.519588\", \"timestamp\": \"1644415478571327732\"}, {\"bbox\": [0.575, 0.542, 0.608, 0.567],\"label\": \"Truck\", \"confidence\": \"0.419588\", \"timestamp\": \"1644415478571327732\"}, {\"bbox\": [0.575, 0.542, 0.608, 0.567],\"label\": \"cat\", \"confidence\": \"0.519588\", \"timestamp\": \"1644415478571327732\"}]}";
+            string testJSON2 =
+                "{\"NEURAL_NETWORK\": [{\"bbox\": [0.799, 0.740, 0.940, 0.904],\"label\": \"Car\", \"confidence\": \"0.932598\", \"timestamp\": \"1644415478571327732\"}, {\"bbox\": [0.575, 0.542, 0.608, 0.567],\"label\": \"Truck\", \"confidence\": \"0.419588\", \"timestamp\": \"1644415478571327732\"}, {\"bbox\": [0.575, 0.542, 0.608, 0.567],\"label\": \"cat\", \"confidence\": \"0.519588\", \"timestamp\": \"1644415478571327732\"}]}";
 
 
-            var c = ParseJson(testJSON);
-            var j = BuildPayload(c);
+            var c1 = ParseJson(testJSON1);
+            c1 = Caching(c1, cache);
+            var j1 = BuildPayload(c1);
+            Task.Delay(1000);
+            var c2 = ParseJson(testJSON2);
+            c2 = Caching(c2, cache);
+            var j2 = BuildPayload(c2);
 #elif RELEASE
             Init().Wait();
             var cts = new CancellationTokenSource();
             AssemblyLoadContext.Default.Unloading += (ctx) => cts.Cancel();
             Console.CancelKeyPress += (sender, cpe) => cts.Cancel();
             WhenCancelled(cts.Token).Wait();
-#endif            
+#endif
         }
 
 
@@ -63,6 +74,9 @@ namespace TotallyEmpty
                 if(double.TryParse(Environment.GetEnvironmentVariable("TOTALLYEMPTY_MIN_CONFIDENCE"), out var conf)) minConfidence = conf;
             }
             Console.WriteLine($"min confidence: {minConfidence}");
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TOTALLYEMPTY_DEVICEID")))
+                deviceId = Environment.GetEnvironmentVariable("TOTALLYEMPTY_DEVICEID");
+            Console.WriteLine($"deviceId: {deviceId}");
 
             // Open a connection to the Edge runtime
             ModuleClient ioTHubModuleClient = await ModuleClient.CreateFromEnvironmentAsync(settings);
@@ -97,10 +111,11 @@ namespace TotallyEmpty
                 try
                 {
                     var countResult = ParseJson(messageString);
+                    countResult = Caching(countResult, cache);
+
                     if (countResult.Count > 0)
                     {
                         var payload = BuildPayload(countResult);
-
                         var msg = new Message(Encoding.UTF8.GetBytes(payload));
 
                         await moduleClient.SendEventAsync("output1", msg);
@@ -158,6 +173,28 @@ namespace TotallyEmpty
 
             Console.WriteLine($"Json payload created {json}");
             return json;
+        }
+
+        private static Dictionary<string, int> Caching(Dictionary<string, int> countResult, Dictionary<string, int> cache)
+        {
+            var result = new Dictionary<string, int>();
+
+            foreach (var kvp in countResult)
+            {
+                if (cache.ContainsKey(kvp.Key) && cache[kvp.Key] == kvp.Value)
+                {
+                    Console.WriteLine($"found key {kvp.Key} with value {kvp.Value} in cache. skipping.");
+                    continue;
+                }
+
+                result.Add(kvp.Key, kvp.Value);
+
+                //updating cache
+                if (cache.ContainsKey(kvp.Key)) cache[kvp.Key] = kvp.Value;
+                else cache.Add(kvp.Key, kvp.Value);
+            }
+
+            return result;
         }
     }
 }
