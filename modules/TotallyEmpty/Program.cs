@@ -150,7 +150,7 @@ namespace TotallyEmpty
         {
             var result = new
             {
-                timestamp = DateTime.UtcNow.Ticks,
+                timestamp = DateTime.UtcNow,
                 data = count.Select(i => new {label = i.Key, count = i.Value})
             };
 
